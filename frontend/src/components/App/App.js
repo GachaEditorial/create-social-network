@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useQuery } from '@apollo/react-hooks';
+import { useQuery } from '@apollo/client';
 import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
 
 import { GlobalStyle } from './GlobalStyles';
@@ -11,6 +11,7 @@ import { NOTIFICATION_CREATED_OR_DELETED } from 'graphql/notification';
 import Message from 'components/Message';
 import { Loading } from 'components/Loading';
 import AuthLayout from 'pages/Auth/AuthLayout';
+import NotFound from 'components/NotFound';
 import AppLayout from './AppLayout';
 import ScrollToTop from './ScrollToTop';
 
@@ -22,7 +23,7 @@ import { useStore } from 'store';
 const App = () => {
   const [{ message }] = useStore();
 
-  const { loading, subscribeToMore, data, refetch } = useQuery(GET_AUTH_USER);
+  const { loading, subscribeToMore, data, error, refetch } = useQuery(GET_AUTH_USER);
 
   useEffect(() => {
     const unsubscribe = subscribeToMore({
@@ -31,10 +32,7 @@ const App = () => {
         if (!subscriptionData.data) return prev;
 
         const oldNotifications = prev.getAuthUser.newNotifications;
-        const {
-          operation,
-          notification,
-        } = subscriptionData.data.notificationCreatedOrDeleted;
+        const { operation, notification } = subscriptionData.data.notificationCreatedOrDeleted;
 
         let newNotifications;
 
@@ -49,7 +47,7 @@ const App = () => {
         } else {
           // Remove from notifications
           const notifications = oldNotifications;
-          const index = notifications.findIndex(n => n.id === notification.id);
+          const index = notifications.findIndex((n) => n.id === notification.id);
           if (index > -1) {
             notifications.splice(index, 1);
           }
@@ -86,9 +84,7 @@ const App = () => {
 
         // If authUser already has unseen message from that user,
         // remove old message, so we can show the new one
-        const index = oldConversations.findIndex(
-          u => u.id === newConversation.id
-        );
+        const index = oldConversations.findIndex((u) => u.id === newConversation.id);
         if (index > -1) {
           oldConversations.splice(index, 1);
         }
@@ -110,6 +106,16 @@ const App = () => {
   }, [subscribeToMore]);
 
   if (loading) return <Loading top="xl" />;
+  if (error) {
+    const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+    if (isDevelopment) {
+      console.error(error);
+    }
+    const devErrorMessage =
+      'Sorry, something went wrong. Please open the browser console to view the detailed error message.';
+    const prodErrorMessage = "Sorry, something went wrong. We're working on getting this fixed as soon as we can.";
+    return <NotFound message={isDevelopment ? devErrorMessage : prodErrorMessage} showHomePageLink={false} />;
+  }
 
   return (
     <Router>
@@ -118,10 +124,7 @@ const App = () => {
       <ScrollToTop>
         <Switch>
           {data.getAuthUser ? (
-            <Route
-              exact
-              render={() => <AppLayout authUser={data.getAuthUser} />}
-            />
+            <Route exact render={() => <AppLayout authUser={data.getAuthUser} />} />
           ) : (
             <Route exact render={() => <AuthLayout refetch={refetch} />} />
           )}
@@ -129,10 +132,7 @@ const App = () => {
       </ScrollToTop>
 
       {message.content.text && (
-        <Message
-          type={message.content.type}
-          autoClose={message.content.autoClose}
-        >
+        <Message type={message.content.type} autoClose={message.content.autoClose}>
           {message.content.text}
         </Message>
       )}
